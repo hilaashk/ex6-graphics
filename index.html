@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>HW5 - Interactive Basketball Court</title>		<style>
+			body { 
+				margin: 0; 
+				font-family: Arial, sans-serif;
+				overflow: hidden;
+			}
+			
+			/* UI Framework for future interactive elements */
+			#ui-container {
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				pointer-events: none;
+				z-index: 100;
+			}
+			
+			#score-display {
+				position: absolute;
+				top: 20px;
+				left: 20px;
+				color: white;
+				font-size: 24px;
+				font-weight: bold;
+				background: rgba(0, 0, 0, 0.7);
+				padding: 15px;
+				border-radius: 10px;
+				pointer-events: auto;
+			}
+			
+			#controls-display {
+				position: absolute;
+				bottom: 20px;
+				left: 20px;
+				color: white;
+				font-size: 16px;
+				background: rgba(0, 0, 0, 0.7);
+				padding: 15px;
+				border-radius: 10px;
+				pointer-events: auto;
+			}
+			
+			#game-info {
+				position: absolute;
+				top: 20px;
+				right: 20px;
+				color: white;
+				font-size: 16px;
+				background: rgba(0, 0, 0, 0.7);
+				padding: 15px;
+				border-radius: 10px;
+				pointer-events: auto;
+			}
+		</style>
+		<script src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'></script>
+		<script src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'></script>
+	</head>
+	<body>
+		<!-- UI Framework for future interactive elements -->
+		<div id="ui-container">
+			<div id="game-info">
+				<div><strong>My Basketball Court</strong></div>
+			</div>
+			
+			<div id="controls-display">
+				<h3>Controls:</h3>
+				<p><strong>O</strong> - Toggle orbit camera</p>
+			</div>		</div>
+		
+		<!-- Load your application code -->
+		<script src="src/hw5.js"></script>
+	</body>
+</html>
