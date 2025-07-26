@@ -103,11 +103,6 @@ An immersive 3D basketball shooting game built with Three.js, extending the stat
 - **Collision Detection**: Complex collision calculations run every frame during ball flight
 - **Memory Usage**: Confetti particles create/destroy geometry which may cause brief stutters
 
-### Visual Limitations
-- **Camera Constraints**: Best viewed from default camera position for optimal gameplay experience
-- **Lighting Effects**: Static lighting may not highlight ball movement optimally in all positions
-- **Texture Quality**: Ball texture resolution limited by original asset quality
-
 ## 🚀 Getting Started
 
 1. Open `index.html` in a modern web browser
@@ -115,14 +110,6 @@ An immersive 3D basketball shooting game built with Three.js, extending the stat
 3. Adjust power with W/S keys
 4. Press spacebar to shoot
 5. Try to score points and beat your accuracy record!
-
-## 📸 How to Run
-
-1. Clone this repository to your local machine
-2. Make sure you have Node.js installed
-3. Start the local web server: `node index.js`
-4. Open your browser and go to http://localhost:8000
-5. Feel free to clone and customize this court to suit your own game or simulation!
 
 ## 🏆 Game Features Summary
 
