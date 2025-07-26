@@ -32,12 +32,12 @@ let ballRotation = new THREE.Vector3(0, 0, 0);
 
 // Physics constants
 const PHYSICS = {
-    GRAVITY: -9.8 * 1.2, // Slightly stronger gravity for better arc
+    GRAVITY: -9.8, // Realistic gravity (removed multiplier for more realistic shots)
     BOUNCE_DAMPING: 0.7, // Energy loss on bounce
     MOVEMENT_SPEED: 0.15,
     ROTATION_SPEED: 0.1,
-    SHOT_BASE_SPEED: 14, // Increased base shooting speed
-    SHOT_POWER_MULTIPLIER: 0.4, // Slightly increased power scaling
+    SHOT_BASE_SPEED: 12, // Reduced base shooting speed for better control
+    SHOT_POWER_MULTIPLIER: 0.3, // Reduced power scaling for more realistic shots
     GROUND_Y: 0.6, // Basketball radius
     HOOP_HEIGHT: 5.3, // Actual rim height from hw5.js
     HOOP_RADIUS: 0.45, // Actual rim radius from hw5.js
@@ -363,9 +363,9 @@ function calculateShotTrajectory(startPos, targetPos, power) {
     const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
     
     // Calculate realistic shot angle based on power and distance
-    // Basketball shots typically use 35° to 55° launch angles
+    // Basketball shots typically use 36° to 51° launch angles (reduced for better control)
     const minAngle = Math.PI / 5; // 36 degrees
-    const maxAngle = Math.PI / 3.3; // ~55 degrees
+    const maxAngle = Math.PI / 3.5; // ~51 degrees (reduced from 55°)
     const shotAngle = minAngle + (power / 100) * (maxAngle - minAngle);
     
     // Calculate required initial velocity using projectile motion physics
@@ -384,10 +384,10 @@ function calculateShotTrajectory(startPos, targetPos, power) {
         initialSpeed = PHYSICS.SHOT_BASE_SPEED;
     }
     
-    // Apply power scaling and ensure reasonable limits
-    const powerFactor = 0.9 + (power / 100) * 0.6; // 0.9 to 1.5 multiplier
-    initialSpeed = Math.max(PHYSICS.SHOT_BASE_SPEED, initialSpeed * powerFactor);
-    initialSpeed = Math.min(initialSpeed, PHYSICS.SHOT_BASE_SPEED * 2.5);
+    // Apply power scaling with more controlled range (0.9x to 1.2x instead of 0.9x to 1.5x)
+    const powerFactor = 0.9 + (power / 100) * 0.3; // 0.9 to 1.2 multiplier
+    initialSpeed = Math.max(PHYSICS.SHOT_BASE_SPEED * 0.8, initialSpeed * powerFactor);
+    initialSpeed = Math.min(initialSpeed, PHYSICS.SHOT_BASE_SPEED * 2.0); // Reduced max speed
     
     // Calculate velocity components
     const horizontalSpeed = initialSpeed * Math.cos(shotAngle);
