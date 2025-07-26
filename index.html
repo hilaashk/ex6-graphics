@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>HW5 - Interactive Basketball Court</title>		<style>
+		<title>HW6 - Interactive Basketball Shooting Game</title>		<style>
 			body { 
 				margin: 0; 
 				font-family: Arial, sans-serif;
@@ -25,12 +25,57 @@
 				top: 20px;
 				left: 20px;
 				color: white;
-				font-size: 24px;
+				font-size: 20px;
 				font-weight: bold;
-				background: rgba(0, 0, 0, 0.7);
+				background: rgba(0, 0, 0, 0.8);
 				padding: 15px;
 				border-radius: 10px;
 				pointer-events: auto;
+				min-width: 200px;
+			}
+			
+			#power-indicator {
+				position: absolute;
+				top: 180px;
+				left: 20px;
+				color: white;
+				font-size: 16px;
+				background: rgba(0, 0, 0, 0.8);
+				padding: 10px;
+				border-radius: 8px;
+				pointer-events: auto;
+			}
+			
+			#power-bar {
+				width: 150px;
+				height: 10px;
+				background: rgba(255, 255, 255, 0.3);
+				border-radius: 5px;
+				margin-top: 5px;
+				overflow: hidden;
+			}
+			
+			#power-fill {
+				height: 100%;
+				background: linear-gradient(to right, #00ff00, #ffff00, #ff0000);
+				width: 50%;
+				transition: width 0.1s;
+			}
+			
+			#game-message {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				color: white;
+				font-size: 36px;
+				font-weight: bold;
+				background: rgba(0, 0, 0, 0.8);
+				padding: 20px;
+				border-radius: 15px;
+				pointer-events: none;
+				opacity: 0;
+				transition: opacity 0.3s;
 			}
 			
 			#controls-display {
@@ -38,11 +83,12 @@
 				bottom: 20px;
 				left: 20px;
 				color: white;
-				font-size: 16px;
-				background: rgba(0, 0, 0, 0.7);
+				font-size: 14px;
+				background: rgba(0, 0, 0, 0.8);
 				padding: 15px;
 				border-radius: 10px;
 				pointer-events: auto;
+				max-width: 300px;
 			}
 			
 			#game-info {
@@ -61,18 +107,41 @@
 		<script src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'></script>
 	</head>
 	<body>
-		<!-- UI Framework for future interactive elements -->
+		<!-- UI Framework for interactive game elements -->
 		<div id="ui-container">
+			<div id="score-display">
+				<div><strong>SCORE: <span id="score">0</span></strong></div>
+				<div>Shots Made: <span id="shots-made">0</span></div>
+				<div>Attempts: <span id="shot-attempts">0</span></div>
+				<div>Accuracy: <span id="accuracy">0%</span></div>
+			</div>
+			
+			<div id="power-indicator">
+				<div><strong>Shot Power</strong></div>
+				<div id="power-bar">
+					<div id="power-fill"></div>
+				</div>
+				<div id="power-text">50%</div>
+			</div>
+			
+			<div id="game-message"></div>
+			
 			<div id="game-info">
-				<div><strong>My Basketball Court</strong></div>
+				<div><strong>Basketball Shooting Game</strong></div>
 			</div>
 			
 			<div id="controls-display">
 				<h3>Controls:</h3>
+				<p><strong>Arrow Keys</strong> - Move basketball</p>
+				<p><strong>W/S</strong> - Adjust shot power</p>
+				<p><strong>Spacebar</strong> - Shoot basketball</p>
+				<p><strong>R</strong> - Reset ball position</p>
 				<p><strong>O</strong> - Toggle orbit camera</p>
-			</div>		</div>
+			</div>
+		</div>
 		
 		<!-- Load your application code -->
 		<script src="src/hw5.js"></script>
+		<script src="src/hw6.js"></script>
 	</body>
 </html>
