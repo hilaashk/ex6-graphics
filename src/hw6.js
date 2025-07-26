@@ -362,28 +362,79 @@ function calculateShotTrajectory(startPos, targetPos, power) {
     // Calculate horizontal distance to target
     const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
     
-    // Simplified trajectory calculation for better shot success
-    // Base the shot angle and speed on power and distance
-    const baseShotAngle = Math.PI / 4; // 45 degrees base angle
-    const angleVariation = (power - 50) / 100 * (Math.PI / 6); // ±30 degrees variation
-    const shotAngle = baseShotAngle + angleVariation;
+    // Simplified trajectory calculation considering hoop height
+    // Calculate required trajectory to reach hoop height (5.3 units)
+    const targetHeight = PHYSICS.HOOP_HEIGHT; // 5.3 units
+    const heightDifference = targetHeight - startPos.y; // How much higher we need to go
     
-    // Calculate initial speed based on distance and power
+    // Improved shot angle calculation that considers target height
+    let shotAngle;
+    
+    // Calculate optimal angle based on distance and height difference
+    if (horizontalDistance > 0) {
+        // Use projectile motion to find optimal angle
+        const g = Math.abs(PHYSICS.GRAVITY);
+        
+        // For basketball shots, we want the ball to reach peak height above the hoop
+        const extraHeight = Math.max(1.0, horizontalDistance * 0.1); // Higher arc for longer shots
+        const peakHeight = targetHeight + extraHeight;
+        const totalHeightGain = peakHeight - startPos.y;
+        
+        // Calculate angle needed to reach this height at this distance
+        // Using tan(θ) = (4h)/d where h is height gain and d is distance
+        const tangentAngle = (4 * totalHeightGain) / horizontalDistance;
+        shotAngle = Math.atan(tangentAngle);
+        
+        // Ensure reasonable angle limits
+        const minAngle = Math.PI / 8; // 22.5 degrees minimum
+        const maxAngle = Math.PI / 2.2; // ~82 degrees maximum
+        shotAngle = Math.max(minAngle, Math.min(maxAngle, shotAngle));
+    } else {
+        // Fallback for very close shots
+        shotAngle = Math.PI / 3; // 60 degrees
+    }
+    
+    // Calculate required initial speed to reach target with proper physics
     const g = Math.abs(PHYSICS.GRAVITY);
     
-    // Simple power-based speed calculation
-    const minSpeed = 3.0;  // Very weak shot
-    const maxSpeed = 18.0; // Very strong shot
-    const baseSpeed = minSpeed + (power / 100) * (maxSpeed - minSpeed);
+    // Calculate required speed using projectile motion equations
+    const sinAngle = Math.sin(shotAngle);
+    const cosAngle = Math.cos(shotAngle);
     
-    // Adjust speed based on distance (longer shots need more power)
-    const distanceFactor = Math.max(0.8, Math.min(1.5, horizontalDistance / 15));
-    let finalSpeed = baseSpeed * distanceFactor;
+    // Calculate time to reach target horizontally
+    const timeToTarget = horizontalDistance / (Math.cos(shotAngle));
     
-    // For very close shots, reduce speed
-    if (horizontalDistance < 5) {
-        finalSpeed *= 0.7;
+    // Calculate required initial speed to reach target height
+    let requiredSpeed;
+    if (timeToTarget > 0 && sinAngle > 0) {
+        // v₀ = √(g * d² / (d * sin(2θ) - 2 * Δy * cos²(θ)))
+        const sin2Theta = Math.sin(2 * shotAngle);
+        const cosSq = cosAngle * cosAngle;
+        
+        if (sin2Theta > 0) {
+            requiredSpeed = Math.sqrt((g * horizontalDistance * horizontalDistance) / 
+                                    (horizontalDistance * sin2Theta - 2 * heightDifference * cosSq));
+        } else {
+            requiredSpeed = 10.0; // Fallback
+        }
+    } else {
+        requiredSpeed = 10.0; // Fallback
     }
+    
+    // Apply power scaling to the calculated speed
+    let powerMultiplier;
+    if (power <= 10) {
+        powerMultiplier = 0.3 + (power / 10) * 0.4; // 0.3 to 0.7
+    } else if (power <= 50) {
+        powerMultiplier = 0.7 + ((power - 10) / 40) * 0.3; // 0.7 to 1.0
+    } else {
+        powerMultiplier = 1.0 + ((power - 50) / 50) * 0.5; // 1.0 to 1.5
+    }
+    
+    let finalSpeed = requiredSpeed * powerMultiplier;
+    
+    // Ensure reasonable speed limits
+    finalSpeed = Math.max(4.0, Math.min(25.0, finalSpeed));
     
     // Calculate velocity components using the shot angle
     const horizontalSpeed = finalSpeed * Math.cos(shotAngle);
@@ -400,9 +451,9 @@ function calculateShotTrajectory(startPos, targetPos, power) {
     );
     
     // Calculate trajectory info for debugging
-    const timeToTarget = horizontalDistance / horizontalSpeed;
+    const flightTime = horizontalDistance / horizontalSpeed;
     const maxHeight = startPos.y + (verticalSpeed * verticalSpeed) / (2 * g);
-    const finalHeight = startPos.y + verticalSpeed * timeToTarget - 0.5 * g * timeToTarget * timeToTarget;
+    const finalHeight = startPos.y + verticalSpeed * flightTime - 0.5 * g * flightTime * flightTime;
     
     console.log(`Shot: Distance=${horizontalDistance.toFixed(1)}, Angle=${(shotAngle * 180/Math.PI).toFixed(1)}°, Speed=${finalSpeed.toFixed(1)}, Max Height=${maxHeight.toFixed(1)}, Final Height=${finalHeight.toFixed(1)}, Power=${power}%`);
     
