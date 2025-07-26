@@ -20,7 +20,8 @@ let gameState = {
     shotAttempts: 0,
     shotPower: 50, // 0-100%
     isShootingMode: false,
-    ballInFlight: false
+    ballInFlight: false,
+    hasScored: false // Track if current shot has scored to avoid double counting
 };
 
 // Basketball physics variables
@@ -29,6 +30,12 @@ let basketballSeams = null; // Will reference the basketball seams from hw5.js
 let ballVelocity = new THREE.Vector3(0, 0, 0);
 let ballPosition = new THREE.Vector3(0, 0.7, 0); // Starting position
 let ballRotation = new THREE.Vector3(0, 0, 0);
+
+// Confetti system
+let confettiParticles = [];
+let confettiGeometry = null;
+let confettiMaterial = null;
+let confettiSystem = null;
 
 // Physics constants
 const PHYSICS = {
@@ -96,6 +103,9 @@ function initHW6() {
     // Override the animate function to include physics
     setupPhysicsLoop();
     
+    // Initialize confetti system
+    initConfettiSystem();
+    
     console.log('HW6 Interactive Features initialized successfully');
 }
 
@@ -130,6 +140,152 @@ function findBasketballObject() {
     }
     if (!basketballSeams) {
         console.error('Could not find basketball seams from hw5.js');
+    }
+}
+
+// ============================================================================
+// CONFETTI SYSTEM
+// ============================================================================
+
+/**
+ * Initialize the confetti particle system
+ */
+function initConfettiSystem() {
+    // Create confetti geometry (larger rectangles for better visibility)
+    confettiGeometry = new THREE.PlaneGeometry(0.3, 0.15); // Increased size from 0.1, 0.05
+    
+    // Create confetti material with multiple colors
+    confettiMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffff00, // Default yellow, will be changed per particle
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9 // Increased opacity for better visibility
+    });
+    
+    console.log('Confetti system initialized');
+}
+
+/**
+ * Create confetti explosion all over the screen
+ */
+function createConfettiExplosion(hoopPosition) {
+    const particleCount = 150; // Reduced from 1200 for better performance and visibility
+    const colors = [
+        0xff0000, // Red
+        0x00ff00, // Green
+        0xffff00, // Yellow
+        0xff00ff, // Magenta
+        0x00ffff, // Cyan
+        0xffa500, // Orange
+        0x800080, // Purple
+        0xffd700, // Gold
+        0xff69b4  // Hot Pink
+    ];
+    
+    for (let i = 0; i < particleCount; i++) {
+        // Create individual confetti piece
+        const confettiPiece = new THREE.Mesh(
+            confettiGeometry.clone(),
+            confettiMaterial.clone()
+        );
+        
+        // Random color for each piece
+        confettiPiece.material.color.setHex(colors[Math.floor(Math.random() * colors.length)]);
+        
+        // Position confetti all across the screen/court area
+        // Use camera position and court bounds to spread confetti across visible area
+        const screenWidth = 20; // Reduced visible court width to keep confetti closer
+        const screenHeight = 10; // Reduced visible court height
+        const screenDepth = 15;  // Reduced visible court depth
+        
+        confettiPiece.position.set(
+            (Math.random() - 0.5) * screenWidth,     // Spread across court width
+            Math.random() * screenHeight + 5,        // Start above court but not too high
+            (Math.random() - 0.5) * screenDepth      // Spread across court depth
+        );
+        
+        // Random initial velocity for more dynamic spread
+        const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 8,  // Reduced horizontal spread to keep visible
+            Math.random() * 6 + 2,      // Strong upward velocity
+            (Math.random() - 0.5) * 8   // Reduced horizontal spread to keep visible
+        );
+        
+        // Random rotation velocity for more dynamic spinning
+        const rotationVelocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 12,
+            (Math.random() - 0.5) * 12,
+            (Math.random() - 0.5) * 12
+        );
+        
+        // Random size variation for more visual interest - FIXED SCALE
+        const scale = 0.8 + Math.random() * 1.0; // Scale between 0.8x and 1.8x (reasonable size)
+        confettiPiece.scale.set(scale, scale, scale);
+        
+        // Store physics data
+        confettiPiece.userData = {
+            velocity: velocity,
+            rotationVelocity: rotationVelocity,
+            lifetime: 4.0 + Math.random() * 2.0, // Varied lifetime 4-6 seconds
+            age: 0
+        };
+        
+        // Add to scene and tracking array
+        scene.add(confettiPiece);
+        confettiParticles.push(confettiPiece);
+    }
+    
+    console.log(`Created full-screen confetti explosion with ${particleCount} particles!`);
+}
+
+/**
+ * Update confetti particles physics and remove expired ones
+ */
+function updateConfetti(deltaTime) {
+    for (let i = confettiParticles.length - 1; i >= 0; i--) {
+        const particle = confettiParticles[i];
+        const userData = particle.userData;
+        
+        // Update age
+        userData.age += deltaTime;
+        
+        // Apply gravity (lighter for confetti)
+        userData.velocity.y += PHYSICS.GRAVITY * deltaTime * 0.3; // Even lighter gravity for floating effect
+        
+        // Add air resistance for more realistic floating motion
+        userData.velocity.x *= 0.998; // Slight air resistance
+        userData.velocity.z *= 0.998;
+        
+        // Add some random air currents for more dynamic movement
+        userData.velocity.x += (Math.random() - 0.5) * 0.1;
+        userData.velocity.z += (Math.random() - 0.5) * 0.1;
+        
+        // Update position
+        particle.position.add(userData.velocity.clone().multiplyScalar(deltaTime));
+        
+        // Update rotation with more dramatic spinning
+        particle.rotation.x += userData.rotationVelocity.x * deltaTime;
+        particle.rotation.y += userData.rotationVelocity.y * deltaTime;
+        particle.rotation.z += userData.rotationVelocity.z * deltaTime;
+        
+        // Fade out over time with more gradual transition
+        const fadeProgress = userData.age / userData.lifetime;
+        const fadeStart = 0.7; // Start fading when 70% of lifetime is reached
+        
+        if (fadeProgress > fadeStart) {
+            const fadeAmount = (fadeProgress - fadeStart) / (1 - fadeStart);
+            particle.material.opacity = Math.max(0, 0.8 * (1 - fadeAmount));
+        } else {
+            particle.material.opacity = 0.8; // Full opacity during main display time
+        }
+        
+        // Remove expired particles
+        if (userData.age >= userData.lifetime) {
+            scene.remove(particle);
+            particle.geometry.dispose();
+            particle.material.dispose();
+            confettiParticles.splice(i, 1);
+        }
     }
 }
 
@@ -324,6 +480,7 @@ function shootBasketball() {
     
     // Enter flight mode
     gameState.ballInFlight = true;
+    gameState.hasScored = false; // Reset scoring flag for new shot
     
     console.log(`Shot taken! Power: ${gameState.shotPower}%, Distance to hoop: ${distance.toFixed(1)}, Target: ${nearestHoop.side}`);
     console.log(`Initial velocity: (${trajectory.x.toFixed(2)}, ${trajectory.y.toFixed(2)}, ${trajectory.z.toFixed(2)})`);
@@ -482,6 +639,7 @@ function resetBasketball() {
     
     // Reset game state
     gameState.ballInFlight = false;
+    gameState.hasScored = false; // Reset scoring flag
     gameState.shotPower = 50;
     
     // Update UI
@@ -528,8 +686,18 @@ function updatePhysics(deltaTime) {
             // Ball has stopped bouncing (comes to rest)
             ballVelocity.set(0, 0, 0);
             gameState.ballInFlight = false;
-            showGameMessage('MISSED SHOT', 'red');
-            console.log('Ball came to rest - missed shot');
+            
+            // Show appropriate message based on whether shot was made
+            if (gameState.hasScored) {
+                console.log('Ball came to rest after successful shot');
+                // Reset after a short delay for successful shots
+                setTimeout(() => {
+                    resetBasketball();
+                }, 1000);
+            } else {
+                showGameMessage('MISSED SHOT', 'red');
+                console.log('Ball came to rest - missed shot');
+            }
         }
     }
     
@@ -650,7 +818,7 @@ function checkHoopCollision() {
             }
         }
         
-        // 2. RIM COLLISION - Immediate bounce on contact
+        // 2. RIM COLLISION - Smart collision that allows scoring from proper angles
         // Rim is a torus at (rimX, 5.3, 0) with radius 0.45
         const distanceToRimCenter = Math.sqrt(
             Math.pow(ballPosition.x - rimX, 2) + 
@@ -658,68 +826,55 @@ function checkHoopCollision() {
         );
         const heightDifference = Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT);
         
-        // Check if ball is hitting the rim (more sensitive collision detection)
+        // Check if ball is hitting the rim
         if (distanceToRimCenter >= PHYSICS.HOOP_RADIUS - ballRadius - 0.1 && 
             distanceToRimCenter <= PHYSICS.HOOP_RADIUS + ballRadius + 0.1 &&
-            heightDifference <= ballRadius + 0.2) {
+            heightDifference <= ballRadius + 0.3) {
             
-            // Calculate bounce direction away from rim center
-            const bounceDirection = new THREE.Vector3(
-                ballPosition.x - rimX,
-                0,
-                ballPosition.z - 0
-            );
+            // Determine if this is a valid scoring approach
+            const isComingFromAbove = ballVelocity.y < 0; // Ball moving downward
+            const isNearRimHeight = ballPosition.y >= PHYSICS.HOOP_HEIGHT - 0.5; // Close to rim height
+            const isReasonableAngle = Math.abs(ballVelocity.y) >= Math.abs(ballVelocity.x) * 0.3; // Not too shallow
             
-            // Normalize and ensure minimum bounce strength
-            if (bounceDirection.length() > 0) {
-                bounceDirection.normalize();
-            } else {
-                // Fallback direction if ball is exactly at rim center
-                bounceDirection.set(ballVelocity.x > 0 ? 1 : -1, 0, ballVelocity.z > 0 ? 1 : -1);
-                bounceDirection.normalize();
-            }
-            
-            // Apply strong bounce immediately
-            const currentSpeed = ballVelocity.length();
-            const bounceStrength = Math.max(currentSpeed * PHYSICS.RIM_BOUNCE, 3.0); // Minimum bounce strength
-            
-            ballVelocity.x = bounceDirection.x * bounceStrength;
-            ballVelocity.z = bounceDirection.z * bounceStrength;
-            ballVelocity.y = Math.max(Math.abs(ballVelocity.y) * 0.3, 1.0); // Ensure upward bounce
-            
-            // Move ball away from rim immediately
-            ballPosition.x = rimX + bounceDirection.x * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
-            ballPosition.z = 0 + bounceDirection.z * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
-            ballPosition.y = Math.max(ballPosition.y, PHYSICS.HOOP_HEIGHT + 0.2);
-            
-            // Update basketball position immediately
-            basketball.position.copy(ballPosition);
-            if (basketballSeams) {
-                basketballSeams.position.copy(ballPosition);
-            }
-            
-            console.log(`Ball hit ${hoop.side} rim and bounced back immediately`);
-            return false; // Continue flight, don't score
-        }
-        
-        // 3. SCORING DETECTION - More forgiving scoring area
-        // Ball must pass through the inner area of the rim while moving downward
-        if (distanceToRimCenter <= PHYSICS.HOOP_INNER_RADIUS &&
-            Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT) <= 0.8 && // Larger vertical tolerance
-            ballVelocity.y < -0.5) { // Less strict downward velocity requirement
-            
-            // Additional check: ball must have come from above the rim
-            if (ballPosition.y >= PHYSICS.HOOP_HEIGHT - 0.8) {
-                // Successful shot!
-                gameState.score += 2;
-                gameState.shotsMade++;
-                gameState.ballInFlight = false;
+            // Allow ball to pass through if it's a good scoring attempt
+            if (isComingFromAbove && isNearRimHeight && isReasonableAngle && 
+                distanceToRimCenter <= PHYSICS.HOOP_RADIUS + ballRadius * 0.5) {
                 
-                // Stop the ball near hoop level for visual effect
-                ballPosition.y = PHYSICS.HOOP_HEIGHT - 1.0;
-                ballPosition.x = rimX;
-                ballPosition.z = 0;
-                ballVelocity.set(0, 0, 0);
+                // This looks like a potential scoring shot - let it continue
+                console.log(`Ball passing through ${hoop.side} rim area - potential score`);
+                // Don't bounce, let the scoring detection handle it
+                
+            } else {
+                // Ball is hitting rim from wrong angle or side - bounce it
+                
+                // Calculate bounce direction away from rim center
+                const bounceDirection = new THREE.Vector3(
+                    ballPosition.x - rimX,
+                    0,
+                    ballPosition.z - 0
+                );
+                
+                // Normalize and ensure minimum bounce strength
+                if (bounceDirection.length() > 0) {
+                    bounceDirection.normalize();
+                } else {
+                    // Fallback direction if ball is exactly at rim center
+                    bounceDirection.set(ballVelocity.x > 0 ? 1 : -1, 0, ballVelocity.z > 0 ? 1 : -1);
+                    bounceDirection.normalize();
+                }
+                
+                // Apply bounce
+                const currentSpeed = ballVelocity.length();
+                const bounceStrength = Math.max(currentSpeed * PHYSICS.RIM_BOUNCE, 3.0);
+                
+                ballVelocity.x = bounceDirection.x * bounceStrength;
+                ballVelocity.z = bounceDirection.z * bounceStrength;
+                ballVelocity.y = Math.max(Math.abs(ballVelocity.y) * 0.3, 1.0);
+                
+                // Move ball away from rim immediately
+                ballPosition.x = rimX + bounceDirection.x * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
+                ballPosition.z = 0 + bounceDirection.z * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
+                ballPosition.y = Math.max(ballPosition.y, PHYSICS.HOOP_HEIGHT + 0.2);
                 
                 // Update basketball position immediately
                 basketball.position.copy(ballPosition);
@@ -727,19 +882,57 @@ function checkHoopCollision() {
                     basketballSeams.position.copy(ballPosition);
                 }
                 
-                // Reset ball position after showing success
-                setTimeout(() => {
-                    resetBasketball();
-                }, 1500);
+                console.log(`Ball hit ${hoop.side} rim and bounced back (bad angle)`);
+                return false; // Continue flight, don't score
+            }
+        }
+        
+        // 3. SCORING DETECTION - Enhanced scoring area
+        // Ball must pass through the inner area of the rim while moving downward
+        if (distanceToRimCenter <= PHYSICS.HOOP_INNER_RADIUS &&
+            Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT) <= 1.0 && // Larger vertical tolerance
+            ballVelocity.y < -0.3) { // Less strict downward velocity requirement
+            
+            // Additional check: ball must have come from above the rim
+            if (ballPosition.y >= PHYSICS.HOOP_HEIGHT - 1.0) {
+                // Check if we haven't already scored this shot
+                if (!gameState.hasScored) {
+                    // Successful shot!
+                    gameState.score += 2;
+                    gameState.shotsMade++;
+                    gameState.hasScored = true; // Mark that we've scored to avoid double counting
+                    
+                    // Show success message
+                    showGameMessage('SHOT MADE! +2 POINTS', 'green');
+                    
+                    // Create confetti explosion at the hoop
+                    const hoopPosition = new THREE.Vector3(rimX, PHYSICS.HOOP_HEIGHT, 0);
+                    createConfettiExplosion(hoopPosition);
+                    
+                    // Update UI
+                    updateUI();
+                    
+                    console.log(`SHOT MADE in ${hoop.side} hoop! Distance: ${distanceToRimCenter.toFixed(2)}, Height: ${ballPosition.y.toFixed(2)}, Score: ${gameState.score}`);
+                }
                 
-                // Show success message
-                showGameMessage('SHOT MADE! +2 POINTS', 'green');
+                // Let the ball continue falling through the hoop
+                // Simulate net effect - ball should fall more vertically and slower
+                ballVelocity.x *= 0.6; // More significant horizontal dampening (net friction)
+                ballVelocity.z *= 0.6;
+                ballVelocity.y *= 0.8; // Slow down vertical velocity slightly (net resistance)
                 
-                // Update UI
-                updateUI();
+                // Add a slight downward bias to make it fall more straight down through net
+                const netEffect = 0.5; // Strength of net pulling effect
+                ballVelocity.y -= netEffect; // Additional downward velocity
                 
-                console.log(`SHOT MADE in ${hoop.side} hoop! Distance: ${distanceToRimCenter.toFixed(2)}, Height: ${ballPosition.y.toFixed(2)}, Score: ${gameState.score}`);
-                return true;
+                // Slight random wobble to simulate net interaction
+                ballVelocity.x += (Math.random() - 0.5) * 0.2;
+                ballVelocity.z += (Math.random() - 0.5) * 0.2;
+                
+                console.log(`Ball passing through net with modified velocity: (${ballVelocity.x.toFixed(2)}, ${ballVelocity.y.toFixed(2)}, ${ballVelocity.z.toFixed(2)})`);
+                
+                // Don't stop the physics - let ball fall naturally through net and bounce
+                return false; // Continue physics simulation
             }
         }
     }
@@ -821,6 +1014,7 @@ function setupPhysicsLoop() {
         updateBasketballMovement(deltaTime);
         updateShotPower();
         updatePhysics(deltaTime);
+        updateConfetti(deltaTime); // Update confetti particles
         
         // Update orbit controls if enabled
         if (controls && isOrbitEnabled) {
