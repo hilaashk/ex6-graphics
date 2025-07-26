@@ -32,16 +32,16 @@ let ballRotation = new THREE.Vector3(0, 0, 0);
 
 // Physics constants
 const PHYSICS = {
-    GRAVITY: -9.8, // Realistic gravity (removed multiplier for more realistic shots)
+    GRAVITY: -9.8, // Realistic gravity
     BOUNCE_DAMPING: 0.7, // Energy loss on bounce
     MOVEMENT_SPEED: 0.15,
     ROTATION_SPEED: 0.1,
-    SHOT_BASE_SPEED: 12, // Reduced base shooting speed for better control
-    SHOT_POWER_MULTIPLIER: 0.3, // Reduced power scaling for more realistic shots
+    SHOT_BASE_SPEED: 12, // Base shooting speed
+    SHOT_POWER_MULTIPLIER: 0.3, // Power scaling
     GROUND_Y: 0.6, // Basketball radius
     HOOP_HEIGHT: 5.3, // Actual rim height from hw5.js
     HOOP_RADIUS: 0.45, // Actual rim radius from hw5.js
-    HOOP_INNER_RADIUS: 0.35, // Inner scoring area
+    HOOP_INNER_RADIUS: 0.4, // Slightly larger inner scoring area for easier scoring
     BACKBOARD_BOUNCE: 0.8, // Backboard bounce coefficient
     RIM_BOUNCE: 0.6, // Rim bounce coefficient
     MIN_ARC_HEIGHT: 2 // Minimum arc height to clear rim
@@ -352,7 +352,7 @@ function findNearestHoop() {
 
 /**
  * Calculate shot trajectory to reach the target hoop
- * Uses realistic basketball physics with proper parabolic trajectory
+ * Uses simplified basketball physics with proper parabolic trajectory
  */
 function calculateShotTrajectory(startPos, targetPos, power) {
     const dx = targetPos.x - startPos.x;
@@ -362,40 +362,36 @@ function calculateShotTrajectory(startPos, targetPos, power) {
     // Calculate horizontal distance to target
     const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
     
-    // Calculate realistic shot angle based on power and distance
-    // Basketball shots typically use 36° to 51° launch angles (reduced for better control)
-    const minAngle = Math.PI / 5; // 36 degrees
-    const maxAngle = Math.PI / 3.5; // ~51 degrees (reduced from 55°)
-    const shotAngle = minAngle + (power / 100) * (maxAngle - minAngle);
+    // Simplified trajectory calculation for better shot success
+    // Base the shot angle and speed on power and distance
+    const baseShotAngle = Math.PI / 4; // 45 degrees base angle
+    const angleVariation = (power - 50) / 100 * (Math.PI / 6); // ±30 degrees variation
+    const shotAngle = baseShotAngle + angleVariation;
     
-    // Calculate required initial velocity using projectile motion physics
+    // Calculate initial speed based on distance and power
     const g = Math.abs(PHYSICS.GRAVITY);
-    const sin2Theta = Math.sin(2 * shotAngle);
-    const cosThetaSq = Math.cos(shotAngle) * Math.cos(shotAngle);
     
-    // Calculate required speed to reach target with proper arc
-    let initialSpeed;
+    // Simple power-based speed calculation
+    const minSpeed = 3.0;  // Very weak shot
+    const maxSpeed = 18.0; // Very strong shot
+    const baseSpeed = minSpeed + (power / 100) * (maxSpeed - minSpeed);
     
-    // Use simplified projectile motion for better consistency
-    if (sin2Theta > 0) {
-        initialSpeed = Math.sqrt((g * horizontalDistance * horizontalDistance) / 
-                                (horizontalDistance * sin2Theta - 2 * dy * cosThetaSq));
-    } else {
-        initialSpeed = PHYSICS.SHOT_BASE_SPEED;
+    // Adjust speed based on distance (longer shots need more power)
+    const distanceFactor = Math.max(0.8, Math.min(1.5, horizontalDistance / 15));
+    let finalSpeed = baseSpeed * distanceFactor;
+    
+    // For very close shots, reduce speed
+    if (horizontalDistance < 5) {
+        finalSpeed *= 0.7;
     }
     
-    // Apply power scaling with more controlled range (0.9x to 1.2x instead of 0.9x to 1.5x)
-    const powerFactor = 0.9 + (power / 100) * 0.3; // 0.9 to 1.2 multiplier
-    initialSpeed = Math.max(PHYSICS.SHOT_BASE_SPEED * 0.8, initialSpeed * powerFactor);
-    initialSpeed = Math.min(initialSpeed, PHYSICS.SHOT_BASE_SPEED * 2.0); // Reduced max speed
-    
-    // Calculate velocity components
-    const horizontalSpeed = initialSpeed * Math.cos(shotAngle);
-    const verticalSpeed = initialSpeed * Math.sin(shotAngle);
+    // Calculate velocity components using the shot angle
+    const horizontalSpeed = finalSpeed * Math.cos(shotAngle);
+    const verticalSpeed = finalSpeed * Math.sin(shotAngle);
     
     // Direction unit vector for horizontal movement
-    const directionX = dx / horizontalDistance;
-    const directionZ = dz / horizontalDistance;
+    const directionX = horizontalDistance > 0 ? dx / horizontalDistance : 0;
+    const directionZ = horizontalDistance > 0 ? dz / horizontalDistance : 0;
     
     const velocity = new THREE.Vector3(
         directionX * horizontalSpeed,
@@ -403,11 +399,12 @@ function calculateShotTrajectory(startPos, targetPos, power) {
         directionZ * horizontalSpeed
     );
     
-    // Calculate expected maximum height for validation
-    const timeToMax = verticalSpeed / g;
-    const maxHeight = startPos.y + (verticalSpeed * timeToMax) - (0.5 * g * timeToMax * timeToMax);
+    // Calculate trajectory info for debugging
+    const timeToTarget = horizontalDistance / horizontalSpeed;
+    const maxHeight = startPos.y + (verticalSpeed * verticalSpeed) / (2 * g);
+    const finalHeight = startPos.y + verticalSpeed * timeToTarget - 0.5 * g * timeToTarget * timeToTarget;
     
-    console.log(`Shot: Distance=${horizontalDistance.toFixed(1)}, Angle=${(shotAngle * 180/Math.PI).toFixed(1)}°, Speed=${initialSpeed.toFixed(1)}, Max Height=${maxHeight.toFixed(1)}, Power=${power}%`);
+    console.log(`Shot: Distance=${horizontalDistance.toFixed(1)}, Angle=${(shotAngle * 180/Math.PI).toFixed(1)}°, Speed=${finalSpeed.toFixed(1)}, Max Height=${maxHeight.toFixed(1)}, Final Height=${finalHeight.toFixed(1)}, Power=${power}%`);
     
     return velocity;
 }
@@ -549,39 +546,60 @@ function checkHoopCollision() {
         const rimX = isLeftHoop ? -13.05 : 13.05;
         
         // 1. BACKBOARD COLLISION
-        // Backboard is at (±13.5, 6, 0) with dimensions 0.1 × 2 × 3
-        const backboardMinX = backboardX - 0.05;
-        const backboardMaxX = backboardX + 0.05;
-        const backboardMinY = 6 - 1; // 5.0
-        const backboardMaxY = 6 + 1; // 7.0
-        const backboardMinZ = -1.5;
-        const backboardMaxZ = 1.5;
+        // Backboard exact dimensions from hw5.js: BoxGeometry(0.1, 2, 3) at (±13.5, 6, 0)
+        const backboardThickness = 0.1;
+        const backboardHeight = 2;
+        const backboardWidth = 3;
         
-        // Check if ball is hitting backboard
-        if (ballPosition.x >= backboardMinX - ballRadius && ballPosition.x <= backboardMaxX + ballRadius &&
-            ballPosition.y >= backboardMinY && ballPosition.y <= backboardMaxY &&
-            ballPosition.z >= backboardMinZ && ballPosition.z <= backboardMaxZ) {
+        const backboardMinX = backboardX - backboardThickness/2;
+        const backboardMaxX = backboardX + backboardThickness/2;
+        const backboardMinY = 6 - backboardHeight/2; // 5.0
+        const backboardMaxY = 6 + backboardHeight/2; // 7.0
+        const backboardMinZ = -backboardWidth/2; // -1.5
+        const backboardMaxZ = backboardWidth/2;  // 1.5
+        
+        // Enhanced backboard collision detection
+        const ballMinX = ballPosition.x - ballRadius;
+        const ballMaxX = ballPosition.x + ballRadius;
+        const ballMinY = ballPosition.y - ballRadius;
+        const ballMaxY = ballPosition.y + ballRadius;
+        const ballMinZ = ballPosition.z - ballRadius;
+        const ballMaxZ = ballPosition.z + ballRadius;
+        
+        // Check if ball overlaps with backboard
+        const xOverlap = ballMaxX >= backboardMinX && ballMinX <= backboardMaxX;
+        const yOverlap = ballMaxY >= backboardMinY && ballMinY <= backboardMaxY;
+        const zOverlap = ballMaxZ >= backboardMinZ && ballMinZ <= backboardMaxZ;
+        
+        if (xOverlap && yOverlap && zOverlap) {
+            // Determine collision direction based on ball's velocity direction
+            const wasMovingTowardBackboard = (isLeftHoop && ballVelocity.x < 0) || (!isLeftHoop && ballVelocity.x > 0);
             
-            // Determine which side of backboard was hit
-            if ((isLeftHoop && ballVelocity.x < 0) || (!isLeftHoop && ballVelocity.x > 0)) {
-                // Ball hit the front of backboard - bounce back
+            if (wasMovingTowardBackboard) {
+                // Immediate bounce - reverse X velocity and apply energy loss
                 ballVelocity.x = -ballVelocity.x * PHYSICS.BACKBOARD_BOUNCE;
-                ballVelocity.y *= 0.9; // Slight energy loss
-                ballVelocity.z *= 0.9;
+                ballVelocity.y *= 0.85; // Some energy loss
+                ballVelocity.z *= 0.85;
                 
-                // Move ball away from backboard to prevent sticking
+                // Immediately move ball outside backboard to prevent penetration
                 if (isLeftHoop) {
                     ballPosition.x = backboardMinX - ballRadius - 0.1;
                 } else {
                     ballPosition.x = backboardMaxX + ballRadius + 0.1;
                 }
                 
-                console.log(`Ball hit ${hoop.side} backboard and bounced`);
+                // Update basketball position immediately to prevent penetration
+                basketball.position.copy(ballPosition);
+                if (basketballSeams) {
+                    basketballSeams.position.copy(ballPosition);
+                }
+                
+                console.log(`Ball hit ${hoop.side} backboard and bounced back immediately`);
                 return false; // Continue flight, don't score
             }
         }
         
-        // 2. RIM COLLISION
+        // 2. RIM COLLISION - Immediate bounce on contact
         // Rim is a torus at (rimX, 5.3, 0) with radius 0.45
         const distanceToRimCenter = Math.sqrt(
             Math.pow(ballPosition.x - rimX, 2) + 
@@ -589,36 +607,58 @@ function checkHoopCollision() {
         );
         const heightDifference = Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT);
         
-        // Check if ball is hitting the rim (torus collision)
-        if (distanceToRimCenter >= PHYSICS.HOOP_RADIUS - ballRadius && 
-            distanceToRimCenter <= PHYSICS.HOOP_RADIUS + ballRadius &&
-            heightDifference <= ballRadius) {
+        // Check if ball is hitting the rim (more sensitive collision detection)
+        if (distanceToRimCenter >= PHYSICS.HOOP_RADIUS - ballRadius - 0.1 && 
+            distanceToRimCenter <= PHYSICS.HOOP_RADIUS + ballRadius + 0.1 &&
+            heightDifference <= ballRadius + 0.2) {
             
-            // Ball hit the rim - bounce
+            // Calculate bounce direction away from rim center
             const bounceDirection = new THREE.Vector3(
                 ballPosition.x - rimX,
                 0,
                 ballPosition.z - 0
-            ).normalize();
+            );
             
-            // Apply bounce in the direction away from rim center
-            const bounceStrength = ballVelocity.length() * PHYSICS.RIM_BOUNCE;
+            // Normalize and ensure minimum bounce strength
+            if (bounceDirection.length() > 0) {
+                bounceDirection.normalize();
+            } else {
+                // Fallback direction if ball is exactly at rim center
+                bounceDirection.set(ballVelocity.x > 0 ? 1 : -1, 0, ballVelocity.z > 0 ? 1 : -1);
+                bounceDirection.normalize();
+            }
+            
+            // Apply strong bounce immediately
+            const currentSpeed = ballVelocity.length();
+            const bounceStrength = Math.max(currentSpeed * PHYSICS.RIM_BOUNCE, 3.0); // Minimum bounce strength
+            
             ballVelocity.x = bounceDirection.x * bounceStrength;
             ballVelocity.z = bounceDirection.z * bounceStrength;
-            ballVelocity.y = Math.abs(ballVelocity.y) * 0.5; // Upward bounce
+            ballVelocity.y = Math.max(Math.abs(ballVelocity.y) * 0.3, 1.0); // Ensure upward bounce
             
-            console.log(`Ball hit ${hoop.side} rim and bounced`);
+            // Move ball away from rim immediately
+            ballPosition.x = rimX + bounceDirection.x * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
+            ballPosition.z = 0 + bounceDirection.z * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
+            ballPosition.y = Math.max(ballPosition.y, PHYSICS.HOOP_HEIGHT + 0.2);
+            
+            // Update basketball position immediately
+            basketball.position.copy(ballPosition);
+            if (basketballSeams) {
+                basketballSeams.position.copy(ballPosition);
+            }
+            
+            console.log(`Ball hit ${hoop.side} rim and bounced back immediately`);
             return false; // Continue flight, don't score
         }
         
-        // 3. SCORING DETECTION
+        // 3. SCORING DETECTION - More forgiving scoring area
         // Ball must pass through the inner area of the rim while moving downward
         if (distanceToRimCenter <= PHYSICS.HOOP_INNER_RADIUS &&
-            Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT) <= 0.5 &&
-            ballVelocity.y < -1.0) { // Must be moving downward with good speed
+            Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT) <= 0.8 && // Larger vertical tolerance
+            ballVelocity.y < -0.5) { // Less strict downward velocity requirement
             
-            // Additional check: ball must have proper arc (came from above)
-            if (ballPosition.y > PHYSICS.HOOP_HEIGHT - 0.5) {
+            // Additional check: ball must have come from above the rim
+            if (ballPosition.y >= PHYSICS.HOOP_HEIGHT - 0.8) {
                 // Successful shot!
                 gameState.score += 2;
                 gameState.shotsMade++;
@@ -647,7 +687,7 @@ function checkHoopCollision() {
                 // Update UI
                 updateUI();
                 
-                console.log(`SHOT MADE in ${hoop.side} hoop! Distance: ${distanceToRimCenter.toFixed(2)}, Score: ${gameState.score}`);
+                console.log(`SHOT MADE in ${hoop.side} hoop! Distance: ${distanceToRimCenter.toFixed(2)}, Height: ${ballPosition.y.toFixed(2)}, Score: ${gameState.score}`);
                 return true;
             }
         }
