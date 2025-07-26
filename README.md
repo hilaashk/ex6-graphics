@@ -2,7 +2,9 @@
 
 An immersive 3D basketball shooting game built with Three.js, extending the static basketball court from HW5 with interactive gameplay, realistic physics, and celebratory effects.
 
-![Final Implementation](ex6.gif)
+![Final Implementation 1](ex6-1.gif)
+
+![Final Implementation 2](ex6-2.gif)
 
 ## 🎮 Complete List of Implemented Controls
 
