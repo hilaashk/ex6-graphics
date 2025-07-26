@@ -818,77 +818,14 @@ function checkHoopCollision() {
             }
         }
         
-        // 2. RIM COLLISION - Smart collision that allows scoring from proper angles
-        // Rim is a torus at (rimX, 5.3, 0) with radius 0.45
+        // 2. SCORING DETECTION - Check this FIRST with very generous detection
+        // Ball must pass through the inner area of the rim while moving downward
         const distanceToRimCenter = Math.sqrt(
             Math.pow(ballPosition.x - rimX, 2) + 
             Math.pow(ballPosition.z - 0, 2)
         );
-        const heightDifference = Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT);
         
-        // Check if ball is hitting the rim
-        if (distanceToRimCenter >= PHYSICS.HOOP_RADIUS - ballRadius - 0.1 && 
-            distanceToRimCenter <= PHYSICS.HOOP_RADIUS + ballRadius + 0.1 &&
-            heightDifference <= ballRadius + 0.3) {
-            
-            // Determine if this is a valid scoring approach
-            const isComingFromAbove = ballVelocity.y < 0; // Ball moving downward
-            const isNearRimHeight = ballPosition.y >= PHYSICS.HOOP_HEIGHT - 0.5; // Close to rim height
-            const isReasonableAngle = Math.abs(ballVelocity.y) >= Math.abs(ballVelocity.x) * 0.3; // Not too shallow
-            
-            // Allow ball to pass through if it's a good scoring attempt
-            if (isComingFromAbove && isNearRimHeight && isReasonableAngle && 
-                distanceToRimCenter <= PHYSICS.HOOP_RADIUS + ballRadius * 0.5) {
-                
-                // This looks like a potential scoring shot - let it continue
-                console.log(`Ball passing through ${hoop.side} rim area - potential score`);
-                // Don't bounce, let the scoring detection handle it
-                
-            } else {
-                // Ball is hitting rim from wrong angle or side - bounce it
-                
-                // Calculate bounce direction away from rim center
-                const bounceDirection = new THREE.Vector3(
-                    ballPosition.x - rimX,
-                    0,
-                    ballPosition.z - 0
-                );
-                
-                // Normalize and ensure minimum bounce strength
-                if (bounceDirection.length() > 0) {
-                    bounceDirection.normalize();
-                } else {
-                    // Fallback direction if ball is exactly at rim center
-                    bounceDirection.set(ballVelocity.x > 0 ? 1 : -1, 0, ballVelocity.z > 0 ? 1 : -1);
-                    bounceDirection.normalize();
-                }
-                
-                // Apply bounce
-                const currentSpeed = ballVelocity.length();
-                const bounceStrength = Math.max(currentSpeed * PHYSICS.RIM_BOUNCE, 3.0);
-                
-                ballVelocity.x = bounceDirection.x * bounceStrength;
-                ballVelocity.z = bounceDirection.z * bounceStrength;
-                ballVelocity.y = Math.max(Math.abs(ballVelocity.y) * 0.3, 1.0);
-                
-                // Move ball away from rim immediately
-                ballPosition.x = rimX + bounceDirection.x * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
-                ballPosition.z = 0 + bounceDirection.z * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
-                ballPosition.y = Math.max(ballPosition.y, PHYSICS.HOOP_HEIGHT + 0.2);
-                
-                // Update basketball position immediately
-                basketball.position.copy(ballPosition);
-                if (basketballSeams) {
-                    basketballSeams.position.copy(ballPosition);
-                }
-                
-                console.log(`Ball hit ${hoop.side} rim and bounced back (bad angle)`);
-                return false; // Continue flight, don't score
-            }
-        }
-        
-        // 3. SCORING DETECTION - Enhanced scoring area
-        // Ball must pass through the inner area of the rim while moving downward
+        // Very generous scoring detection - allow shots that are reasonably close to center
         if (distanceToRimCenter <= PHYSICS.HOOP_INNER_RADIUS &&
             Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT) <= 1.0 && // Larger vertical tolerance
             ballVelocity.y < -0.3) { // Less strict downward velocity requirement
@@ -917,29 +854,81 @@ function checkHoopCollision() {
                 
                 // Let the ball continue falling through the hoop
                 // Simulate net effect - ball should fall more vertically and slower
-                ballVelocity.x *= 0.6; // More significant horizontal dampening (net friction)
-                ballVelocity.z *= 0.6;
-                ballVelocity.y *= 0.8; // Slow down vertical velocity slightly (net resistance)
+                ballVelocity.x *= 0.3; // Much stronger horizontal dampening (net catches ball)
+                ballVelocity.z *= 0.3;
+                ballVelocity.y *= 0.6; // Slow down vertical velocity more (net resistance)
                 
-                // Add a slight downward bias to make it fall more straight down through net
-                const netEffect = 0.5; // Strength of net pulling effect
-                ballVelocity.y -= netEffect; // Additional downward velocity
+                // Make the ball fall straight down through the net
+                const netEffect = 1.0; // Stronger net pulling effect
+                ballVelocity.y = Math.min(ballVelocity.y - netEffect, -2.0); // Ensure downward motion
                 
-                // Slight random wobble to simulate net interaction
-                ballVelocity.x += (Math.random() - 0.5) * 0.2;
-                ballVelocity.z += (Math.random() - 0.5) * 0.2;
+                // Center the ball horizontally toward the hoop center for clean net effect
+                const pullToCenter = 0.1;
+                ballVelocity.x += (rimX - ballPosition.x) * pullToCenter;
+                ballVelocity.z += (0 - ballPosition.z) * pullToCenter;
                 
                 console.log(`Ball passing through net with modified velocity: (${ballVelocity.x.toFixed(2)}, ${ballVelocity.y.toFixed(2)}, ${ballVelocity.z.toFixed(2)})`);
                 
-                // Don't stop the physics - let ball fall naturally through net and bounce
+                // Don't check rim collision for successful shots - let it fall through
                 return false; // Continue physics simulation
             }
         }
+        
+        // 3. RIM COLLISION - ONLY check if ball hasn't scored AND hasn't been marked as scored
+        const heightDifference = Math.abs(ballPosition.y - PHYSICS.HOOP_HEIGHT);
+        
+        // Only bounce if ball is clearly hitting the outer edge of the rim AND has not scored
+        if (!gameState.hasScored && // NEVER bounce if we've already scored
+            distanceToRimCenter >= PHYSICS.HOOP_RADIUS - ballRadius && 
+            distanceToRimCenter <= PHYSICS.HOOP_RADIUS + ballRadius + 0.1 &&
+            heightDifference <= ballRadius + 0.3) {
+            
+            // Ball is hitting the outer rim edge - bounce it
+            
+            // Calculate bounce direction away from rim center
+            const bounceDirection = new THREE.Vector3(
+                ballPosition.x - rimX,
+                0,
+                ballPosition.z - 0
+            );
+            
+            // Normalize and ensure minimum bounce strength
+            if (bounceDirection.length() > 0) {
+                bounceDirection.normalize();
+            } else {
+                // Fallback direction if ball is exactly at rim center
+                bounceDirection.set(ballVelocity.x > 0 ? 1 : -1, 0, ballVelocity.z > 0 ? 1 : -1);
+                bounceDirection.normalize();
+            }
+            
+            // Apply bounce
+            const currentSpeed = ballVelocity.length();
+            const bounceStrength = Math.max(currentSpeed * PHYSICS.RIM_BOUNCE, 3.0);
+            
+            ballVelocity.x = bounceDirection.x * bounceStrength;
+            ballVelocity.z = bounceDirection.z * bounceStrength;
+            ballVelocity.y = Math.max(Math.abs(ballVelocity.y) * 0.3, 1.0);
+            
+            // Move ball away from rim immediately
+            ballPosition.x = rimX + bounceDirection.x * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
+            ballPosition.z = 0 + bounceDirection.z * (PHYSICS.HOOP_RADIUS + ballRadius + 0.2);
+            ballPosition.y = Math.max(ballPosition.y, PHYSICS.HOOP_HEIGHT + 0.2);
+            
+            // Update basketball position immediately
+            basketball.position.copy(ballPosition);
+            if (basketballSeams) {
+                basketballSeams.position.copy(ballPosition);
+            }
+            
+            // Show rim hit message ONLY if no score has been made
+            showGameMessage('So close! Don\'t hit the rim next time!', 'orange');
+            
+            console.log(`Ball hit ${hoop.side} rim and bounced back (outer edge hit)`);
+            return false; // Continue flight, don't score
+        }
     }
     return false;
-}
-
-// ============================================================================
+}// ============================================================================
 // USER INTERFACE (Phase 7)
 // ============================================================================
 
