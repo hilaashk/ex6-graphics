@@ -108,36 +108,6 @@ An immersive 3D basketball shooting game built with Three.js, extending the stat
 - **Lighting Effects**: Static lighting may not highlight ball movement optimally in all positions
 - **Texture Quality**: Ball texture resolution limited by original asset quality
 
-## 📁 Sources of External Assets Used
-
-### Three.js Library
-- **Three.js r128**: Core 3D graphics library
-  - Source: https://threejs.org/
-  - License: MIT License
-- **OrbitControls**: Camera control system
-  - Source: Three.js examples
-  - File: `src/OrbitControls.js`
-
-### Texture Assets
-- **Basketball Texture**: `src/texture/ball-texture.jpg`
-  - Source: Custom basketball texture asset
-  - Used for: Basketball sphere material mapping
-- **Court Texture**: `src/texture/court-texture.jpg`
-  - Source: Basketball court floor texture
-  - Used for: Court surface material
-
-### Base Implementation
-- **HW5 Foundation**: Static basketball court and basic Three.js setup
-  - Source: Previous assignment (hw5.js)
-  - Preserved unchanged as per requirements
-  - Includes: Court geometry, hoop structures, basic lighting, camera setup
-
-### Code Architecture
-- **MVC Pattern**: Separation of game state, physics, and rendering
-- **Modular Design**: Clear separation between different game systems
-- **Event-Driven**: Input handling through browser event system
-- **Object-Oriented**: Proper encapsulation of game components
-
 ## 🚀 Getting Started
 
 1. Open `index.html` in a modern web browser
@@ -165,3 +135,6 @@ An immersive 3D basketball shooting game built with Three.js, extending the stat
 - **Visual Polish**: Professional UI with color-coded feedback system
 
 Enjoy the game and see how high you can score! 🏀
+
+## Submitted by: 
+Hila Ashkenazy
